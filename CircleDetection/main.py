@@ -15,6 +15,15 @@ def process_image(img):
     # Apply a median blur to the grayscale image
     gray = cv2.medianBlur(gray, 1)
     gray = cv2.GaussianBlur(gray, (7, 7), 0)
+    
+    # mask = np.zeros(gray.shape[:2], dtype="uint8")
+    # cv2.circle(mask, (1400, 1000), 700, 255, -1)
+    # masked = cv2.bitwise_and(img, img, mask=mask)
+    # cv2.imshow("Circles", mask)
+    # cv2.waitKey(0)
+    # cv2.imshow("Circles", masked)
+    # cv2.waitKey(0)
+    
     edges = cv2.Canny(gray, 30, 200)
 
     return edges
@@ -53,8 +62,8 @@ def draw_circle(img, circles):
 def main():
     frame = cv2.imread(sys.argv[1])
     process_frame = process_image(frame)
-    # cv2.imshow("Circles", process_frame)
-    # cv2.waitKey(0)
+    cv2.imshow("Circles", process_frame)
+    cv2.waitKey(0)
     circles = detect_circles(process_frame)
     img_with_circle = draw_circle(frame, circles)
     cv2.imshow("Circles", img_with_circle)
