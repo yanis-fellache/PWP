@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import sys
 
 # Function to process an input image
 
@@ -10,12 +11,12 @@ def process_image(img):
     # Convert the image to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # Apply a blur to the grayscale image
-    gray = cv2.blur(gray, (3, 3))
+    gray = cv2.blur(gray, (4, 4))
     # Apply a median blur to the grayscale image
     gray = cv2.medianBlur(gray, 1)
-    gray = cv2.GaussianBlur(gray, (9, 9), 0)
+    gray = cv2.GaussianBlur(gray, (7, 7), 0)
     edges = cv2.Canny(gray, 30, 200)
-    # apply mask
+
     return edges
 
 
@@ -50,10 +51,10 @@ def draw_circle(img, circles):
 
 
 def main():
-    frame = cv2.imread("can4.jpg")
+    frame = cv2.imread(sys.argv[1])
     process_frame = process_image(frame)
-    cv2.imshow("Circles", process_frame)
-    cv2.waitKey(0)
+    # cv2.imshow("Circles", process_frame)
+    # cv2.waitKey(0)
     circles = detect_circles(process_frame)
     img_with_circle = draw_circle(frame, circles)
     cv2.imshow("Circles", img_with_circle)
