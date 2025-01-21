@@ -14,8 +14,8 @@ def process_image(img):
     gray = cv2.blur(gray, (4, 4))
     # Apply a median blur to the grayscale image
     gray = cv2.medianBlur(gray, 1)
-    gray = cv2.GaussianBlur(gray, (7, 7), 0)
-    
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+
     # mask = np.zeros(gray.shape[:2], dtype="uint8")
     # cv2.circle(mask, (1400, 1000), 700, 255, -1)
     # masked = cv2.bitwise_and(img, img, mask=mask)
@@ -23,7 +23,7 @@ def process_image(img):
     # cv2.waitKey(0)
     # cv2.imshow("Circles", masked)
     # cv2.waitKey(0)
-    
+
     edges = cv2.Canny(gray, 30, 200)
 
     return edges
@@ -45,16 +45,24 @@ def draw_circle(img, circles):
         # Convert circle coordinates to integer
         circles = np.uint16(np.around(circles))
 
-        # Loop through detected circles
-        for circle in circles[0, :]:
-            center = (circle[0], circle[1])
-            print(f"Center: {int(circle[0])}, {int(circle[1])} Radius: {circle[2]}")
-            # Draw a small dot at the center of the circle
-            cv2.circle(img, center, 1, (0, 0, 255), 10)
+        circles = sorted(circles[0, :], key=lambda x: x[2], reverse=True)
+        circle = circles[0]
+        center = (circle[0], circle[1])
+        print(f"Center: {int(circle[0])}, {int(circle[1])} Radius: {circle[2]}")
+        cv2.circle(img, center, 1, (0, 0, 255), 10)
+        rad = circle[2]
+        cv2.circle(img, center, rad, (0, 255, 0), 10)
 
-            # Draw the circle outline
-            rad = circle[2]
-            cv2.circle(img, center, rad, (0, 255, 0), 10)
+        # Loop through detected circles
+        # for circle in circles[0, :]:
+        #     center = (circle[0], circle[1])
+        #     print(f"Center: {int(circle[0])}, {int(circle[1])} Radius: {circle[2]}")
+        #     # Draw a small dot at the center of the circle
+        #     cv2.circle(img, center, 1, (0, 0, 255), 10)
+        #
+        #     # Draw the circle outline
+        #     rad = circle[2]
+        #     cv2.circle(img, center, rad, (0, 255, 0), 10)
 
     return img
 
@@ -73,4 +81,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
