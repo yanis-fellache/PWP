@@ -14,7 +14,7 @@ def process_image(img):
     # Apply a blur to the grayscale image
     gray = cv2.blur(gray, (4, 4))
     # Apply a median blur to the grayscale image
-    gray = cv2.medianBlur(gray, 1)
+    gray = cv2.medianBlur(gray, 3)
     gray = cv2.GaussianBlur(gray, (7, 7), 0)
 
     # mask = np.zeros(gray.shape[:2], dtype="uint8")
@@ -45,7 +45,7 @@ def draw_circle(img, circles):
     if circles is not None:
         # Convert circle coordinates to integer
         circles = np.uint16(np.around(circles))
-
+        print(circles)
         circles = sorted(circles[0, :], key=lambda x: x[2], reverse=True)
         circle = circles[0]
         center = (circle[0], circle[1])
@@ -71,8 +71,8 @@ def draw_circle(img, circles):
 def main():
     frame = cv2.imread(sys.argv[1])
     process_frame = process_image(frame)
-    # cv2.imshow("Circles", process_frame)
-    # cv2.waitKey(0)
+    cv2.imshow("Circles", process_frame)
+    cv2.waitKey(0)
     circles = detect_circles(process_frame)
     img_with_circle = draw_circle(frame, circles)
     cv2.imshow("Circles", img_with_circle)
