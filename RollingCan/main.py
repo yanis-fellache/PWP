@@ -29,7 +29,7 @@ def detect_circles(processed_img):
     rows = processed_img.shape[0]
 
     # Use HoughCircles to detect circles in the processed image
-    circles = cv2.HoughCircles(processed_img, cv2.HOUGH_GRADIENT, dp=1, minDist=rows / 8, param1=50, param2=30)
+    circles = cv2.HoughCircles(processed_img, cv2.HOUGH_GRADIENT, dp=1, minDist=rows / 8, param1=50, param2=40)
     return circles
 
 
@@ -72,10 +72,10 @@ def main():
     # cv2.imshow("Circles", img_with_circle)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-    cap = cv2.VideoCapture('RollingCan.mov')
+    cap = cv2.VideoCapture('RollingCan2.mov')
     while cap.isOpened():
         _, frame = cap.read()
-        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+        frame = cv2.resize(frame, (0, 0), fx=0.4, fy=0.4)
 
         process_frame = process_image(frame)
         # # cv2.imshow("Circles", process_frame)
