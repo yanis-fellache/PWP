@@ -3,10 +3,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 
+'''
+Add Calculate Slope function and extend detected lines
+Find a way to remove grass from vision
+Detect Arrows and add Compas Rose
+'''
+
 plt.ion()
 
 def perspective(img):
-    tl, bl, tr, br = (130, 325), (10, 375), (400, 325), (500, 375)
+    tl, bl, tr, br = (130, 350), (10, 400), (460, 350), (530, 400)
+    # cv2.circle(img, tl, 5, (0, 0, 255), -1)
+    # cv2.circle(img, bl, 5, (0, 0, 255), -1)
+    # cv2.circle(img, tr, 5, (0, 0, 255), -1)
+    # cv2.circle(img, br, 5, (0, 0, 255), -1)
+
     pts1 = np.float32([tl, bl, tr, br])
     pts2 = np.float32([[0, 0], [0, 480], [640, 0], [480, 640]])
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
@@ -18,11 +29,12 @@ def perspective(img):
 def color_mask(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     white_mask = cv2.inRange(hsv, (0, 0, 200), (255, 30, 255))
-    yellow_mask = cv2.inRange(hsv, (15, 100, 100), (0, 255, 255))
+    yellow_mask = cv2.inRange(hsv, (15, 100, 100), (50, 255, 255))
     mask = cv2.bitwise_or(white_mask, yellow_mask)
     masked = cv2.bitwise_and(img, img, mask=mask)
     cv2.imshow("Masked", masked)
     return masked
+
 
 def process_image(img):
     masked = color_mask(img)
@@ -32,12 +44,15 @@ def process_image(img):
     # cv2.imshow("Proccessed", edges)
     return edges
 
+
 def hough_lines(img):
     lines = cv2.HoughLinesP(img, 1, np.pi / 180, 50, minLineLength=50, maxLineGap=200)
     return lines
 
+
 def get_histogram(img):
     return np.sum(img[img.shape[0]//2:, :], axis=0)
+
 
 def plot_histogram(histogram):
     plt.clf()
@@ -47,9 +62,11 @@ def plot_histogram(histogram):
     plt.ylabel("Sum of Pixel Intensities")
     plt.pause(0.1)
 
+
 def calculate_centerline(left_curve, right_curve, plot_y):
     center_curve = (left_curve + right_curve) / 2
     return np.array([np.transpose(np.vstack([center_curve, plot_y]))])
+
 
 def sliding_window_search(binary_warped, original_img, inv_matrix):
     histogram = get_histogram(binary_warped)
@@ -114,6 +131,7 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     result = cv2.addWeighted(original_img, 1, unwarped_lane, 1, 0)
     return result
 
+
 def main():
     cap = cv2.VideoCapture('drivingPWP2.mp4')
     while cap.isOpened():
@@ -123,13 +141,14 @@ def main():
         frame = cv2.resize(frame, (640, 480))
         p_wrap, inv_matrix = perspective(frame)
         processed_img = process_image(p_wrap)
-        lane_overlay = sliding_window_search(processed_img, frame, inv_matrix)
+        frame = sliding_window_search(processed_img, frame, inv_matrix)
         
-        cv2.imshow("Lane Detection", lane_overlay)
+        cv2.imshow("Lane Detection", frame)
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
