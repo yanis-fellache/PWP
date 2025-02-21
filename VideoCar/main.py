@@ -26,13 +26,20 @@ def perspective(img):
     cv2.imshow("Warped", warped)
     return warped, inv_matrix
 
+
 def color_mask(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
     white_mask = cv2.inRange(hsv, (0, 0, 200), (255, 30, 255))
-    yellow_mask = cv2.inRange(hsv, (15, 100, 100), (50, 255, 255))
-    mask = cv2.bitwise_or(white_mask, yellow_mask)
-    masked = cv2.bitwise_and(img, img, mask=mask)
-    cv2.imshow("Masked", masked)
+    yellow_mask = cv2.inRange(hsv, (10, 70, 80), (50, 255, 255))
+    green_mask = cv2.inRange(hsv, (25, 40, 40), (90, 255, 255))
+    non_grass_mask = cv2.bitwise_not(green_mask)
+
+    lane_mask = cv2.bitwise_or(white_mask, yellow_mask)
+    final_mask = cv2.bitwise_and(lane_mask, non_grass_mask)
+    masked = cv2.bitwise_and(img, img, mask=final_mask)
+
+    cv2.imshow("Masked (No Grass)", masked)
     return masked
 
 
@@ -43,6 +50,13 @@ def process_image(img):
     edges = cv2.Canny(gray, 50, 150)
     # cv2.imshow("Proccessed", edges)
     return edges
+
+
+def compute_slope(line):
+    x1, y1, x2, y2 = line
+    if x2 - x1 == 0:
+        return 0
+    return (y2 - y1) / (x2 - x1)
 
 
 def hough_lines(img):
@@ -128,12 +142,25 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         cv2.polylines(lane_image, np.int32([center_points]), isClosed=False, color=(255, 255, 0), thickness=5)
     
     unwarped_lane = cv2.warpPerspective(lane_image, inv_matrix, (original_img.shape[1], original_img.shape[0]))
-    result = cv2.addWeighted(original_img, 1, unwarped_lane, 1, 0)
+    result = cv2.addWeighted(original_img, 1, unwarped_lane, 10, 0)
     return result
 
 
+def arrow_overlay(img, arrow, location):
+    arrow = abs(255 - arrow)
+    h, w = arrow.shape[:2]
+    x, y = location
+    shapes = np.zeros_like(img, np.uint8)
+    shapes[y: y+h, x: x+w] = arrow
+    mask = shapes.astype(bool)
+    img[mask] = cv2.addWeighted(img, 1, shapes, 1, 1)[mask]
+    return img
+
 def main():
     cap = cv2.VideoCapture('drivingPWP2.mp4')
+    arrow = cv2.imread('arrow.png')
+    arrow = cv2.resize(arrow, (108, 80))
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -142,10 +169,14 @@ def main():
         p_wrap, inv_matrix = perspective(frame)
         processed_img = process_image(p_wrap)
         frame = sliding_window_search(processed_img, frame, inv_matrix)
-        
-        cv2.imshow("Lane Detection", frame)
+
+        result = arrow_overlay(frame, arrow, (20, 20))
+
+        cv2.imshow("Lane Detection", result)
+
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break
+
     cap.release()
     cv2.destroyAllWindows()
 
