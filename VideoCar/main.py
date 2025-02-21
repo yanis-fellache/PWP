@@ -39,7 +39,7 @@ def color_mask(img):
     final_mask = cv2.bitwise_and(lane_mask, non_grass_mask)
     masked = cv2.bitwise_and(img, img, mask=final_mask)
 
-    cv2.imshow("Masked (No Grass)", masked)
+    cv2.imshow("Masked", masked)
     return masked
 
 
@@ -155,6 +155,7 @@ def arrow_overlay(img, arrow, location):
     mask = shapes.astype(bool)
     img[mask] = cv2.addWeighted(img, 1, shapes, 1, 1)[mask]
     return img
+
 
 def main():
     cap = cv2.VideoCapture('drivingPWP2.mp4')
