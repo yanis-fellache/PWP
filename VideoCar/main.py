@@ -4,20 +4,24 @@ import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 
 '''
-Add Calculate Slope function and extend detected lines
-Find a way to remove grass from vision
-Detect Arrows and add Compas Rose
+Program for lane detection and overlaying a compass rose on a video feed.
+
+Steps:
+1. Apply perspective transformation to the input frame.
+2. Mask out unnecessary colors and detect lane lines.
+3. Process the image using edge detection and Hough transform.
+4. Create a histogram.
+5. Perform a sliding window search to identify lane curves.
+6. Calculate and overlay a centerline for lane guidance.
+7. Overlay a directional arrow on the processed frame.
+8. Display the final output with detected lanes and directional arrows.
 '''
 
 plt.ion()
 
 def perspective(img):
+    """Apply perspective transformation to warp the input image."""
     tl, bl, tr, br = (130, 350), (10, 400), (460, 350), (530, 400)
-    # cv2.circle(img, tl, 5, (0, 0, 255), -1)
-    # cv2.circle(img, bl, 5, (0, 0, 255), -1)
-    # cv2.circle(img, tr, 5, (0, 0, 255), -1)
-    # cv2.circle(img, br, 5, (0, 0, 255), -1)
-
     pts1 = np.float32([tl, bl, tr, br])
     pts2 = np.float32([[0, 0], [0, 480], [640, 0], [480, 640]])
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
@@ -26,49 +30,45 @@ def perspective(img):
     cv2.imshow("Warped", warped)
     return warped, inv_matrix
 
-
 def color_mask(img):
+    """Apply color masking to filter out lane lines from the image."""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
     white_mask = cv2.inRange(hsv, (0, 0, 200), (255, 30, 255))
     yellow_mask = cv2.inRange(hsv, (10, 70, 80), (50, 255, 255))
     green_mask = cv2.inRange(hsv, (25, 40, 40), (90, 255, 255))
     non_grass_mask = cv2.bitwise_not(green_mask)
-
     lane_mask = cv2.bitwise_or(white_mask, yellow_mask)
     final_mask = cv2.bitwise_and(lane_mask, non_grass_mask)
     masked = cv2.bitwise_and(img, img, mask=final_mask)
-
     cv2.imshow("Masked", masked)
     return masked
 
-
 def process_image(img):
+    """Process the image using Gaussian blur and edge detection."""
     masked = color_mask(img)
     blur = cv2.GaussianBlur(masked, (3, 3), 1)
     gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150)
-    # cv2.imshow("Proccessed", edges)
     return edges
 
-
 def compute_slope(line):
+    """Calculate the slope of a given line segment."""
     x1, y1, x2, y2 = line
     if x2 - x1 == 0:
         return 0
     return (y2 - y1) / (x2 - x1)
 
-
 def hough_lines(img):
+    """Apply Hough transform to detect lane lines."""
     lines = cv2.HoughLinesP(img, 1, np.pi / 180, 50, minLineLength=50, maxLineGap=200)
     return lines
 
-
 def get_histogram(img):
+    """Compute the histogram of the lower half of the image."""
     return np.sum(img[img.shape[0]//2:, :], axis=0)
 
-
 def plot_histogram(histogram):
+    """Plot and update the histogram visualization."""
     plt.clf()
     plt.plot(histogram)
     plt.title("Lane Line Histogram")
@@ -76,13 +76,22 @@ def plot_histogram(histogram):
     plt.ylabel("Sum of Pixel Intensities")
     plt.pause(0.1)
 
-
 def calculate_centerline(left_curve, right_curve, plot_y):
+    """Calculate the centerline between two detected lane curves."""
     center_curve = (left_curve + right_curve) / 2
     return np.array([np.transpose(np.vstack([center_curve, plot_y]))])
 
+def arrow_overlay(img, arrow, location):
+    """Overlay a transparent arrow image onto a larger background image."""
+    h, w, _ = arrow.shape
+    x, y = location
+    alpha = arrow[:, :, 3] / 255
+    blended = (1 - alpha[:, :, None]) * img[y:y+h, x:x+w, :3] + alpha[:, :, None] * arrow[:, :, :3]
+    img[y:y+h, x:x+w, :3] = blended.astype(np.uint8)
+    return img
 
 def sliding_window_search(binary_warped, original_img, inv_matrix):
+    """Perform a sliding window search to detect lane lines."""
     histogram = get_histogram(binary_warped)
     # plot_histogram(histogram)
     midpoint = np.int32(histogram.shape[0] / 2)
@@ -102,12 +111,8 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         win_y_high = binary_warped.shape[0] - window * window_height
         win_xleft_low, win_xleft_high = leftx_current - margin, leftx_current + margin
         win_xright_low, win_xright_high = rightx_current - margin, rightx_current + margin
-        
-        left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
-                     (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
-        right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
-                      (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
-        
+        left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
+        right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
         left_lane_inds.append(left_inds)
         right_lane_inds.append(right_inds)
         
@@ -118,10 +123,8 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
-    
     leftx, lefty = nonzerox[left_lane_inds], nonzeroy[left_lane_inds]
     rightx, righty = nonzerox[right_lane_inds], nonzeroy[right_lane_inds]
-    
     lane_image = np.zeros_like(original_img)
     plot_y = np.linspace(0, original_img.shape[0] - 1, original_img.shape[0])
     
@@ -146,20 +149,10 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     return result
 
 
-def arrow_overlay(img, arrow, location):
-    arrow = abs(255 - arrow)
-    h, w = arrow.shape[:2]
-    x, y = location
-    shapes = np.zeros_like(img, np.uint8)
-    shapes[y: y+h, x: x+w] = arrow
-    mask = shapes.astype(bool)
-    img[mask] = cv2.addWeighted(img, 1, shapes, 1, 1)[mask]
-    return img
-
-
 def main():
+    """Main function to capture video, process frames, and display lane detection output."""
     cap = cv2.VideoCapture('drivingPWP2.mp4')
-    arrow = cv2.imread('arrow.png')
+    arrow = cv2.imread('arrow.png', cv2.IMREAD_UNCHANGED)
     arrow = cv2.resize(arrow, (108, 80))
 
     while cap.isOpened():
@@ -170,17 +163,13 @@ def main():
         p_wrap, inv_matrix = perspective(frame)
         processed_img = process_image(p_wrap)
         frame = sliding_window_search(processed_img, frame, inv_matrix)
-
         result = arrow_overlay(frame, arrow, (20, 20))
-
         cv2.imshow("Lane Detection", result)
-
         if cv2.waitKey(25) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     main()
