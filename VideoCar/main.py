@@ -18,10 +18,12 @@ Steps:
 '''
 
 plt.ion()
+avg_distance = 225
+
 
 def perspective(img):
     """Apply perspective transformation to warp the input image."""
-    tl, bl, tr, br = (130, 350), (10, 400), (460, 350), (530, 400)
+    tl, bl, tr, br = (120, 350), (10, 400), (460, 350), (530, 400)
     pts1 = np.float32([tl, bl, tr, br])
     pts2 = np.float32([[0, 0], [0, 480], [640, 0], [480, 640]])
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
@@ -29,6 +31,7 @@ def perspective(img):
     warped = cv2.warpPerspective(img, matrix, (640, 480))
     cv2.imshow("Warped", warped)
     return warped, inv_matrix
+
 
 def color_mask(img):
     """Apply color masking to filter out lane lines from the image."""
@@ -43,6 +46,7 @@ def color_mask(img):
     cv2.imshow("Masked", masked)
     return masked
 
+
 def process_image(img):
     """Process the image using Gaussian blur and edge detection."""
     masked = color_mask(img)
@@ -51,6 +55,32 @@ def process_image(img):
     edges = cv2.Canny(gray, 50, 150)
     return edges
 
+
+def compute_avg_distance(left_line, right_line, old_distance):
+    """Calculate the distance between the two lanes."""
+    total_distance = 0
+    for i in range(min(len(left_line), len(right_line))):
+        total_distance += (right_line[i] - left_line[i])
+
+    avg = total_distance // min(len(left_line), len(right_line))
+    if old_distance == 0:
+        return avg
+
+    if not -100 < avg - old_distance < 100:
+        avg = old_distance
+
+    avg = (avg + old_distance) // 2
+    return avg
+
+
+def create_points(line):
+    """Predict inexistant line by creating points following a slope"""
+    new_line = []
+    for point in line:
+        new_line.append(point - avg_distance)
+    return np.array(new_line)
+
+
 def compute_slope(line):
     """Calculate the slope of a given line segment."""
     x1, y1, x2, y2 = line
@@ -58,14 +88,17 @@ def compute_slope(line):
         return 0
     return (y2 - y1) / (x2 - x1)
 
+
 def hough_lines(img):
-    """Apply Hough transform to detect lane lines."""
+    """Apply Hough Transform to detect lane lines."""
     lines = cv2.HoughLinesP(img, 1, np.pi / 180, 50, minLineLength=50, maxLineGap=200)
     return lines
 
+
 def get_histogram(img):
     """Compute the histogram of the lower half of the image."""
-    return np.sum(img[img.shape[0]//2:, :], axis=0)
+    return np.sum(img[img.shape[0] // 2:, :], axis=0)
+
 
 def plot_histogram(histogram):
     """Plot and update the histogram visualization."""
@@ -76,28 +109,32 @@ def plot_histogram(histogram):
     plt.ylabel("Sum of Pixel Intensities")
     plt.pause(0.1)
 
+
 def calculate_centerline(left_curve, right_curve, plot_y):
     """Calculate the centerline between two detected lane curves."""
     center_curve = (left_curve + right_curve) / 2
     return np.array([np.transpose(np.vstack([center_curve, plot_y]))])
+
 
 def arrow_overlay(img, arrow, location):
     """Overlay a transparent arrow image onto a larger background image."""
     h, w, _ = arrow.shape
     x, y = location
     alpha = arrow[:, :, 3] / 255
-    blended = (1 - alpha[:, :, None]) * img[y:y+h, x:x+w, :3] + alpha[:, :, None] * arrow[:, :, :3]
-    img[y:y+h, x:x+w, :3] = blended.astype(np.uint8)
+    blended = (1 - alpha[:, :, None]) * img[y:y + h, x:x + w, :3] + alpha[:, :, None] * arrow[:, :, :3]
+    img[y:y + h, x:x + w, :3] = blended.astype(np.uint8)
     return img
+
 
 def sliding_window_search(binary_warped, original_img, inv_matrix):
     """Perform a sliding window search to detect lane lines."""
+    global avg_distance
     histogram = get_histogram(binary_warped)
     # plot_histogram(histogram)
     midpoint = np.int32(histogram.shape[0] / 2)
     leftx_base = np.argmax(histogram[:midpoint])
     rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-    
+
     nwindows = 9
     window_height = np.int32(binary_warped.shape[0] / nwindows)
     nonzero = binary_warped.nonzero()
@@ -105,45 +142,55 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     leftx_current, rightx_current = leftx_base, rightx_base
     margin, minpix = 100, 50
     left_lane_inds, right_lane_inds = [], []
-    
+
     for window in range(nwindows):
         win_y_low = binary_warped.shape[0] - (window + 1) * window_height
         win_y_high = binary_warped.shape[0] - window * window_height
         win_xleft_low, win_xleft_high = leftx_current - margin, leftx_current + margin
         win_xright_low, win_xright_high = rightx_current - margin, rightx_current + margin
-        left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
-        right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
+        left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (
+                    nonzerox < win_xleft_high)).nonzero()[0]
+        right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (
+                    nonzerox < win_xright_high)).nonzero()[0]
         left_lane_inds.append(left_inds)
         right_lane_inds.append(right_inds)
-        
+
         if len(left_inds) > minpix:
             leftx_current = np.int32(np.mean(nonzerox[left_inds]))
         if len(right_inds) > minpix:
             rightx_current = np.int32(np.mean(nonzerox[right_inds]))
-    
+
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
     leftx, lefty = nonzerox[left_lane_inds], nonzeroy[left_lane_inds]
     rightx, righty = nonzerox[right_lane_inds], nonzeroy[right_lane_inds]
     lane_image = np.zeros_like(original_img)
     plot_y = np.linspace(0, original_img.shape[0] - 1, original_img.shape[0])
-    
+
+    if not len(leftx) and not len(lefty) and len(rightx) and len(righty):
+        leftx = create_points(rightx)
+        print(leftx)
+
+
+
+
     if len(leftx) and len(lefty):
         left_fit = np.polyfit(lefty, leftx, 2)
         left_curve = np.polyval(left_fit, plot_y)
         left_points = np.array([np.transpose(np.vstack([left_curve, plot_y]))])
         cv2.polylines(lane_image, np.int32([left_points]), isClosed=False, color=(0, 255, 0), thickness=10)
-    
+
     if len(rightx) and len(righty):
         right_fit = np.polyfit(righty, rightx, 2)
         right_curve = np.polyval(right_fit, plot_y)
         right_points = np.array([np.transpose(np.vstack([right_curve, plot_y]))])
         cv2.polylines(lane_image, np.int32([right_points]), isClosed=False, color=(0, 0, 255), thickness=10)
-    
+
     if len(leftx) and len(lefty) and len(rightx) and len(righty):
+        avg_distance = compute_avg_distance(left_curve, right_curve, avg_distance)
         center_points = calculate_centerline(left_curve, right_curve, plot_y)
         cv2.polylines(lane_image, np.int32([center_points]), isClosed=False, color=(255, 255, 0), thickness=5)
-    
+
     unwarped_lane = cv2.warpPerspective(lane_image, inv_matrix, (original_img.shape[1], original_img.shape[0]))
     result = cv2.addWeighted(original_img, 1, unwarped_lane, 10, 0)
     return result
@@ -170,6 +217,7 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
