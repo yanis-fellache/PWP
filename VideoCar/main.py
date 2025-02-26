@@ -17,8 +17,17 @@ Steps:
 8. Display the final output with detected lanes and directional arrows.
 '''
 
+'''
+Need to Fix:
+1. If no lanes are detected, display those of previous frame.
+2. Lower contrast of the video so that second part does not break.
+3. If the avg slope of the line is not vertical or curves too much, straighten it or use made up line. 
+    - Could also use histogram pixel intensity
+'''
+
+
 plt.ion()
-avg_distance = 225
+avg_distance = 250
 
 
 def perspective(img):
@@ -56,28 +65,24 @@ def process_image(img):
     return edges
 
 
-def compute_avg_distance(left_line, right_line, old_distance):
+def compute_avg_distance(left_line, right_line, avgd):
     """Calculate the distance between the two lanes."""
     total_distance = 0
     for i in range(min(len(left_line), len(right_line))):
         total_distance += (right_line[i] - left_line[i])
-
-    avg = total_distance // min(len(left_line), len(right_line))
-    if old_distance == 0:
-        return avg
-
-    if not -100 < avg - old_distance < 100:
-        avg = old_distance
-
-    avg = (avg + old_distance) // 2
-    return avg
+    current_avg = total_distance // min(len(left_line), len(right_line))
+    if current_avg > avgd:
+        avgd += 0.5
+    if avgd > 400:
+        avgd = 250
+    return avgd
 
 
-def create_points(line):
+def create_points(line, avgd):
     """Predict inexistant line by creating points following a slope"""
     new_line = []
     for point in line:
-        new_line.append(point - avg_distance)
+        new_line.append(point + avgd)
     return np.array(new_line)
 
 
@@ -168,11 +173,12 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     plot_y = np.linspace(0, original_img.shape[0] - 1, original_img.shape[0])
 
     if not len(leftx) and not len(lefty) and len(rightx) and len(righty):
-        leftx = create_points(rightx)
-        print(leftx)
+        leftx = create_points(rightx, -avg_distance)
+        lefty = righty
 
-
-
+    elif not len(rightx) and not len(righty) and len(leftx) and len(lefty):
+        rightx = create_points(leftx, avg_distance)
+        righty = lefty
 
     if len(leftx) and len(lefty):
         left_fit = np.polyfit(lefty, leftx, 2)
@@ -187,10 +193,12 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         cv2.polylines(lane_image, np.int32([right_points]), isClosed=False, color=(0, 0, 255), thickness=10)
 
     if len(leftx) and len(lefty) and len(rightx) and len(righty):
+        print(avg_distance)
         avg_distance = compute_avg_distance(left_curve, right_curve, avg_distance)
         center_points = calculate_centerline(left_curve, right_curve, plot_y)
         cv2.polylines(lane_image, np.int32([center_points]), isClosed=False, color=(255, 255, 0), thickness=5)
 
+    cv2.imshow("Warped with Lane", lane_image)
     unwarped_lane = cv2.warpPerspective(lane_image, inv_matrix, (original_img.shape[1], original_img.shape[0]))
     result = cv2.addWeighted(original_img, 1, unwarped_lane, 10, 0)
     return result
@@ -217,7 +225,6 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     main()
