@@ -28,6 +28,7 @@ Need to Fix:
 
 plt.ion()
 avg_distance = 250
+prev_leftx, prev_lefty, prev_rightx, prev_righty = None, None, None, None
 
 
 def perspective(img):
@@ -58,6 +59,10 @@ def color_mask(img):
 
 def process_image(img):
     """Process the image using Gaussian blur and edge detection."""
+    # hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 0.9, 0, 255).astype(np.uint8)
+    # img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    # cv2.imshow("contrast", img)
     masked = color_mask(img)
     blur = cv2.GaussianBlur(masked, (3, 3), 1)
     gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
@@ -65,18 +70,16 @@ def process_image(img):
     return edges
 
 
-def compute_avg_distance(left_line, right_line, avgd):
+def compute_avg_distance(left_line, right_line):
     """Calculate the distance between the two lanes."""
+    global avg_distance
     total_distance = 0
-    for i in range(min(len(left_line), len(right_line))):
+    num = min(len(left_line), len(right_line))
+    for i in range(num):
         total_distance += (right_line[i] - left_line[i])
-    current_avg = total_distance // min(len(left_line), len(right_line))
-    if current_avg > avgd:
-        avgd += 0.5
-    if avgd > 400:
-        avgd = 250
-    return avgd
-
+    current_avg = total_distance / num
+    if current_avg > 200: return current_avg
+    else: return avg_distance
 
 def create_points(line, avgd):
     """Predict inexistant line by creating points following a slope"""
@@ -133,14 +136,14 @@ def arrow_overlay(img, arrow, location):
 
 def sliding_window_search(binary_warped, original_img, inv_matrix):
     """Perform a sliding window search to detect lane lines."""
-    global avg_distance
+    global avg_distance, prev_leftx, prev_lefty, prev_rightx, prev_righty
     histogram = get_histogram(binary_warped)
     # plot_histogram(histogram)
     midpoint = np.int32(histogram.shape[0] / 2)
     leftx_base = np.argmax(histogram[:midpoint])
     rightx_base = np.argmax(histogram[midpoint:]) + midpoint
 
-    nwindows = 9
+    nwindows = 6
     window_height = np.int32(binary_warped.shape[0] / nwindows)
     nonzero = binary_warped.nonzero()
     nonzeroy, nonzerox = np.array(nonzero[0]), np.array(nonzero[1])
@@ -180,6 +183,16 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         rightx = create_points(leftx, avg_distance)
         righty = lefty
 
+    if not len(leftx) and prev_leftx is not None:
+        leftx, lefty = prev_leftx, prev_lefty
+    if not len(rightx) and prev_rightx is not None:
+        rightx, righty = prev_rightx, prev_righty
+
+    if len(leftx):
+        prev_leftx, prev_lefty = leftx, lefty
+    if len(rightx):
+        prev_rightx, prev_righty = rightx, righty
+
     if len(leftx) and len(lefty):
         left_fit = np.polyfit(lefty, leftx, 2)
         left_curve = np.polyval(left_fit, plot_y)
@@ -194,7 +207,7 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
 
     if len(leftx) and len(lefty) and len(rightx) and len(righty):
         print(avg_distance)
-        avg_distance = compute_avg_distance(left_curve, right_curve, avg_distance)
+        avg_distance = compute_avg_distance(left_curve, right_curve)
         center_points = calculate_centerline(left_curve, right_curve, plot_y)
         cv2.polylines(lane_image, np.int32([center_points]), isClosed=False, color=(255, 255, 0), thickness=5)
 
