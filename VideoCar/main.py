@@ -33,7 +33,11 @@ prev_leftx, prev_lefty, prev_rightx, prev_righty = None, None, None, None
 
 def perspective(img):
     """Apply perspective transformation to warp the input image."""
-    tl, bl, tr, br = (120, 350), (10, 400), (460, 350), (530, 400)
+    tl, bl, tr, br = (170, 350), (60, 400), (420, 350), (490, 400)
+    # cv2.circle(img, tl, 5, (0, 0, 255), -1)
+    # cv2.circle(img, bl, 5, (0, 0, 255), -1)
+    # cv2.circle(img, tr, 5, (0, 0, 255), -1)
+    # cv2.circle(img, br, 5, (0, 0, 255), -1)
     pts1 = np.float32([tl, bl, tr, br])
     pts2 = np.float32([[0, 0], [0, 480], [640, 0], [480, 640]])
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
@@ -89,12 +93,12 @@ def create_points(line, avgd):
     return np.array(new_line)
 
 
-def compute_slope(line):
+def compute_average_slope(linex, liney):
     """Calculate the slope of a given line segment."""
-    x1, y1, x2, y2 = line
-    if x2 - x1 == 0:
-        return 0
-    return (y2 - y1) / (x2 - x1)
+    total = 0
+    for i in range(1, len(linex)):
+        total += (liney[i]-liney[i-1])/(linex[i]-linex[i-1])
+    return total/len(linex)
 
 
 def hough_lines(img):
@@ -183,6 +187,14 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         rightx = create_points(leftx, avg_distance)
         righty = lefty
 
+    if len(leftx) and len(lefty) and len(rightx) and len(righty):
+        print(avg_distance)
+        avg_distance = compute_avg_distance(leftx, rightx)
+        avg_slope_left = compute_average_slope(leftx, lefty)
+        avg_slope_right = compute_average_slope(rightx, righty)
+        if avg_distance < 250:
+            leftx, rightx = [], []
+
     if not len(leftx) and prev_leftx is not None:
         leftx, lefty = prev_leftx, prev_lefty
     if not len(rightx) and prev_rightx is not None:
@@ -206,8 +218,6 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
         cv2.polylines(lane_image, np.int32([right_points]), isClosed=False, color=(0, 0, 255), thickness=10)
 
     if len(leftx) and len(lefty) and len(rightx) and len(righty):
-        print(avg_distance)
-        avg_distance = compute_avg_distance(left_curve, right_curve)
         center_points = calculate_centerline(left_curve, right_curve, plot_y)
         cv2.polylines(lane_image, np.int32([center_points]), isClosed=False, color=(255, 255, 0), thickness=5)
 
