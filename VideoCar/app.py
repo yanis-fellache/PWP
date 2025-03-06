@@ -52,11 +52,13 @@ def perspective(img):
 def color_mask(img):
     """Apply color masking to filter out lane lines from the image."""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_blue = np.array([120, 50, 115])
-    upper_blue = np.array([120, 255, 255])
-    mask = cv2.inRange(hsv, lower_blue, upper_blue)
-    masked = cv2.bitwise_and(img, img, mask=mask)
-    cv2.imshow("Masked", masked)
+    white_mask = cv2.inRange(hsv, (0, 10, 200), (255, 20, 255))
+    yellow_mask = cv2.inRange(hsv, (10, 70, 80), (50, 255, 255))
+    green_mask = cv2.inRange(hsv, (25, 40, 40), (90, 255, 255))
+    non_grass_mask = cv2.bitwise_not(green_mask)
+    lane_mask = cv2.bitwise_or(white_mask, yellow_mask)
+    final_mask = cv2.bitwise_and(lane_mask, non_grass_mask)
+    masked = cv2.bitwise_and(img, img, mask=final_mask)
     return masked
 
 
@@ -66,12 +68,7 @@ def process_image(img):
     # hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 0.9, 0, 255).astype(np.uint8)
     # img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     # cv2.imshow("contrast", img)
-
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    result = np.zeros_like(img)
-    result[..., 0] = gray
-
-    masked = color_mask(result)
+    masked = color_mask(img)
     gray = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (3, 3), 1)
     edges = cv2.Canny(gray, 50, 150)
@@ -232,14 +229,15 @@ def sliding_window_search(binary_warped, original_img, inv_matrix):
     return result
 
 
-# def image_overlay(frame, arrow):
-#     """Main function to capture video, process frames, and display lane detection output."""
-#     frame = cv2.resize(frame, (640, 480))
-#     p_wrap, inv_matrix = perspective(frame)
-#     processed_img = process_image(p_wrap)
-#     frame = sliding_window_search(processed_img, frame, inv_matrix)
-#     result = arrow_overlay(frame, arrow, (20, 20))
-#     return frame, result
+def arrow_motion(pframe):
+    left = cv2.resize(cv2.imread("LeftTurn.png"), (640, 480))
+    right = cv2.resize(cv2.imread("RightTurn.png"), (640, 480))
+
+    if pframe.shape == left.shape and not(np.bitwise_xor(pframe, left).any()):
+        print("Left")
+    elif pframe.shape == right.shape and not(np.bitwise_xor(pframe, right).any()):
+        print("Right")
+
 
 def image_overlay():
     """Main function to capture video, process frames, and display lane detection output."""
@@ -257,8 +255,9 @@ def image_overlay():
         processed_img = process_image(p_wrap)
         sl = sliding_window_search(processed_img, frame, inv_matrix)
         result = arrow_overlay(sl, arrow, (20, 20))
+        arrow_motion(p_wrap)
 
-        combined_frame = cv2.vconcat([frame, result])
+        combined_frame = cv2.vconcat([p_wrap, result])
 
         # Encode the frame
         _, buffer = cv2.imencode('.jpg', combined_frame)
@@ -266,7 +265,7 @@ def image_overlay():
 
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        time.sleep(0.0167)
+        # time.sleep(0.0167)
         # cv2.imshow("Result", result)
         # if cv2.waitKey(25) & 0xFF == ord('q'):
         #     break
@@ -274,11 +273,12 @@ def image_overlay():
     cap.release()
     # cv2.destroyAllWindows()
 
+
 @app.route("/")
 def home():
     return Response(image_overlay(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)
 
