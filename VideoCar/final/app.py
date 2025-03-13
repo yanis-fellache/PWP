@@ -68,6 +68,7 @@ from skimage.morphology import skeletonize
 #
 ######################################################################################
 
+
 ################################## PSEUDOCODE #######################################
 #
 # 1. Open video file
@@ -197,7 +198,6 @@ class Application(QtWidgets.QMainWindow):
         self.__frame_count += 1
 
     def begin_frame(self) -> bool:
-        """Reads the next frame from the video."""
         ret, frame = self.__video_stream.read()
         if not ret or frame is None:
             print("Error: Unable to read frame from video. Ending playback.")
@@ -208,7 +208,6 @@ class Application(QtWidgets.QMainWindow):
         return True
 
     def process_frame(self):
-        """Processes the current frame: applies lane detection and overlays directional arrow."""
         if self.__original_frame is None or self.__original_frame.size == 0:
             return
 
@@ -221,7 +220,6 @@ class Application(QtWidgets.QMainWindow):
         self.__current_frame = self.arrow_motion(self.__original_frame, sl, self.__arrow_image)
 
     def display_frame(self):
-        """Displays the processed frame in the GUI."""
         raw_frame = cv2.cvtColor(self.__original_frame, cv2.COLOR_BGR2RGB)
         frame = cv2.cvtColor(self.__current_frame, cv2.COLOR_BGR2RGB)
 
@@ -244,9 +242,7 @@ class Application(QtWidgets.QMainWindow):
         )
 
     def update_log(self, message):
-        """Appends messages to the log display."""
         self.__log.append(message)
-
 
     def perspective(self, img):  
         tl, bl, tr, br = (150, 350), (10, 460), (420, 350), (560, 460)
@@ -428,11 +424,10 @@ class Application(QtWidgets.QMainWindow):
         else:
             rotated_arrow = arrow
 
-        self.count+=1
+        self.count += 1
         result = self.arrow_overlay(sl, rotated_arrow, (20, 20))
         return result
 
-    
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
